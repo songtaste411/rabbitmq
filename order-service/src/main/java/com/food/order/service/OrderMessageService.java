@@ -32,13 +32,7 @@ public class OrderMessageService {
 
        try(Connection connection = connectionFactory.newConnection();
            Channel channel = connection.createChannel()){
-           channel.exchangeDeclare(
-                   "exchange.order.restaurant",
-                   BuiltinExchangeType.DIRECT,
-                   Boolean.TRUE,
-                   Boolean.FALSE,
-                   null
-           );
+           //队列用的是一个订单队列
            channel.queueDeclare(
                    "queue.order",
                    Boolean.TRUE,
@@ -47,6 +41,15 @@ public class OrderMessageService {
                    null
 
            );
+           //餐厅交换机
+           channel.exchangeDeclare(
+                   "exchange.order.restaurant",
+                   BuiltinExchangeType.DIRECT,
+                   Boolean.TRUE,
+                   Boolean.FALSE,
+                   null
+           );
+
            channel.queueBind(
                    "queue.order",
                    "exchange.order.restaurant",
@@ -63,6 +66,19 @@ public class OrderMessageService {
            channel.queueBind(
                    "queue.order",
                    "exchange.order.deliveryman",
+                   "key.order"
+           );
+           //结算交换机-FANOUT模式
+           channel.exchangeDeclare(
+                   "exchange.settlement.order",
+                   BuiltinExchangeType.FANOUT,
+                   Boolean.TRUE,
+                   Boolean.FALSE,
+                   null
+           );
+           channel.queueBind(
+                   "queue.order",
+                   "exchange.settlement.order",
                    "key.order"
            );
             channel.basicConsume("queue.order",Boolean.TRUE,deliverCallback,consumerTag->{});
@@ -105,6 +121,26 @@ public class OrderMessageService {
                     }
                     break;
                 case RESTAURANT_CONFIRMED:
+                    if(null!=messageDTO.getDeliverymanId()){
+                        orderDetailPO.setStatus(OrderStatus.DELIVERTMAN_CONFIRMED);
+                        orderDetailPO.setDeliverymanId(messageDTO.getDeliverymanId());
+                        orderDetailDao.update(orderDetailPO);
+                        //给结算服务发送消息
+                        try(Connection connection = connectionFactory.newConnection();
+                            Channel channel = connection.createChannel()){
+                            String messageToSend = JSON.toJSONString(messageDTO);
+                            channel.basicPublish(
+                                    "exchange.order.settlement",
+                                    "key.settlement",
+                                    null,
+                                    messageToSend.getBytes()
+                            );
+
+                        }
+                    }else{
+                        orderDetailPO.setStatus(OrderStatus.FAILED);
+                        orderDetailDao.update(orderDetailPO);
+                    }
                     break;
                 case DELIVERTMAN_CONFIRMED:
                     break;

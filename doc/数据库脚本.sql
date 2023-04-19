@@ -38,3 +38,15 @@ date datetime DEFAULT NULL COMMENT '时间',
 PRIMARY KEY ( id )
 )
 ENGINE = INNODB  DEFAULT CHARSET = utf8 COMMENT='订单表';
+
+DROP TABLE  if exists settlement;
+CREATE TABLE settlement (
+id INT NOT NULL AUTO_INCREMENT COMMENT '结算id',
+order_id int DEFAULT NULL COMMENT '订单id',
+transaction_id int DEFAULT NULL COMMENT '流水号',
+amount DECIMAL(9,2) DEFAULT NULL COMMENT '金额',
+`status` varchar(36) DEFAULT NULL COMMENT '状态',
+date datetime DEFAULT NULL COMMENT '时间',
+PRIMARY KEY ( id )
+)
+ENGINE = INNODB  DEFAULT CHARSET = utf8 COMMENT='结算表';
