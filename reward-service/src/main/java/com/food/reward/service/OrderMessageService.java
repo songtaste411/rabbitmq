@@ -1,11 +1,10 @@
-package com.food.settlement.service;
+package com.food.reward.service;
 
 import com.alibaba.fastjson.JSON;
-import com.food.settlement.dao.SettlementDao;
-import com.food.settlement.dto.OrderMessageDTO;
-import com.food.settlement.enums.ProductStatus;
-import com.food.settlement.enums.SettlementStatus;
-import com.food.settlement.po.SettlementPo;
+import com.food.reward.dao.RewardDao;
+import com.food.reward.dto.OrderMessageDTO;
+import com.food.reward.enums.RewardStatus;
+import com.food.reward.po.RewardPo;
 import com.rabbitmq.client.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,9 +19,7 @@ import java.util.concurrent.TimeoutException;
 @Service
 public class OrderMessageService {
     @Autowired
-    private SettlementService settlementService;
-    @Autowired
-    private SettlementDao settlementDao;
+    private RewardDao rewardDao;
     @Async
     public void handMessage() throws IOException, TimeoutException, InterruptedException {
         ConnectionFactory connectionFactory = new ConnectionFactory();
@@ -33,15 +30,15 @@ public class OrderMessageService {
             Channel channel=connection.createChannel() ){
             //监听的exchange
             channel.exchangeDeclare(
-                    "exchange.order.settlement",
-                    BuiltinExchangeType.FANOUT,
+                    "exchange.order.reward",
+                    BuiltinExchangeType.TOPIC,
                     Boolean.TRUE,
                     Boolean.FALSE,
                     null
             );
             //监听的queue
             channel.queueDeclare(
-                    "queue.settlement",
+                    "queue.reward",
                     Boolean.TRUE,
                     Boolean.FALSE,
                     Boolean.FALSE,
@@ -49,13 +46,13 @@ public class OrderMessageService {
             );
             //exchange和queue绑定
             channel.queueBind(
-                    "queue.settlement",
-                    "exchange.order.settlement",
-                    "key.settlement"
+                    "queue.reward",
+                    "exchange.order.reward",
+                    "key.reward"
             );
 
 
-            channel.basicConsume("queue.settlement", Boolean.TRUE,deliverCallback,consumerTag->{});
+            channel.basicConsume("queue.reward", Boolean.TRUE,deliverCallback,consumerTag->{});
             while(true){
                 Thread.sleep(100000000);
             }
@@ -65,21 +62,19 @@ public class OrderMessageService {
         OrderMessageDTO messageDTO = JSON.parseObject(message.getBody(), OrderMessageDTO.class);
         ConnectionFactory connectionFactory = new ConnectionFactory();
         connectionFactory.setHost("localhost");
-        SettlementPo settlementPo = new SettlementPo();
-        settlementPo.setAmount(messageDTO.getPrice());
-        settlementPo.setDate(new Date());
-        settlementPo.setOrderId(messageDTO.getOrderId());
-        Integer tranid = settlementService.settlement(messageDTO.getAccountId(), messageDTO.getPrice());
-        settlementPo.setTransactionId(tranid);
-        settlementPo.setStatus(String.valueOf(SettlementStatus.SUCCESS));
-        settlementDao.insert(settlementPo);
-        //插入结算id
-        messageDTO.setSettlementId(settlementPo.getId());
+        RewardPo rewardPo = new RewardPo();
+        rewardPo.setAmount(messageDTO.getPrice());
+        rewardPo.setDate(new Date());
+        rewardPo.setOrderId(messageDTO.getOrderId());
+        rewardPo.setStatus(String.valueOf(RewardStatus.SUCCESS));
+        rewardDao.insert(rewardPo);
+        //插入返回的id
+        messageDTO.setRewardId(rewardPo.getId());
         try(Connection connection=connectionFactory.newConnection();
             Channel channel=connection.createChannel() ){
             String messageToSend = JSON.toJSONString(messageDTO);
             channel.basicPublish(
-                    "exchange.settlement.order",
+                    "exchange.order.reward",
                     "key.order",
                     null,
                     messageToSend.getBytes()

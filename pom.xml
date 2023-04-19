@@ -19,6 +19,7 @@
 		<module>restaurant-service</module>
 		<module>deliveryman-service</module>
 		<module>settlement-service</module>
+		<module>reward-service</module>
 	</modules>
 	<properties>
 		<java.version>17</java.version>

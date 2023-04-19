@@ -81,6 +81,19 @@ public class OrderMessageService {
                    "exchange.settlement.order",
                    "key.order"
            );
+           //积分交换机-TOPIC模式
+           channel.exchangeDeclare(
+                   "exchange.order.reward",
+                   BuiltinExchangeType.TOPIC,
+                   Boolean.TRUE,
+                   Boolean.FALSE,
+                   null
+           );
+           channel.queueBind(
+                   "queue.order",
+                   "exchange.order.reward",
+                   "key.order"
+           );
             channel.basicConsume("queue.order",Boolean.TRUE,deliverCallback,consumerTag->{});
             while(true){
                 Thread.sleep(100000000);
@@ -143,8 +156,36 @@ public class OrderMessageService {
                     }
                     break;
                 case DELIVERTMAN_CONFIRMED:
+                    if(null!=messageDTO.getSettlementId()){
+                        orderDetailPO.setStatus(OrderStatus.SETTLEMENT_CONFIRMED);
+                        orderDetailPO.setSettlementId(messageDTO.getSettlementId());
+                        orderDetailDao.update(orderDetailPO);
+                        //给积分服务发送消息
+                        try(Connection connection = connectionFactory.newConnection();
+                            Channel channel = connection.createChannel()){
+                            String messageToSend = JSON.toJSONString(messageDTO);
+                            channel.basicPublish(
+                                    "exchange.order.reward",
+                                    "key.reward",
+                                    null,
+                                    messageToSend.getBytes()
+                            );
+
+                        }
+                    }else{
+                        orderDetailPO.setStatus(OrderStatus.FAILED);
+                        orderDetailDao.update(orderDetailPO);
+                    }
                     break;
                 case SETTLEMENT_CONFIRMED:
+                    if(null!=messageDTO.getRewardId()){
+                        orderDetailPO.setStatus(OrderStatus.ORDER_CREATED);
+                        orderDetailPO.setRewardId(messageDTO.getRewardId());
+                        orderDetailDao.update(orderDetailPO);
+                    }else{
+                        orderDetailPO.setStatus(OrderStatus.FAILED);
+                        orderDetailDao.update(orderDetailPO);
+                    }
                     break;
                 case ORDER_CREATED:
                     break;
