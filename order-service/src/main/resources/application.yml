@@ -1,12 +1,19 @@
 server:
   port: 8082
+knife4j:
+  enable: true
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     password: root
     username: root
     url: jdbc:mysql://127.0.0.1:3306/food?useUnicode=true&characterEncoding=utf-8&serverTimezone=GMT%2B8
+  rabbitmq:
+    address: localhost
+    port: 5672
+    username: admin
+    password: admin
 
-knife4j:
-  enable: true
+
+
 

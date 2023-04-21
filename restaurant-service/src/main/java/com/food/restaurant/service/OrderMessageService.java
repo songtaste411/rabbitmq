@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -24,14 +25,10 @@ public class OrderMessageService {
     private ProductDao productDao;
     @Autowired
     private RestaurantDao restaurantDao;
+    @Autowired
+    private Channel channel;
     @Async
     public void handMessage() throws IOException, TimeoutException, InterruptedException {
-        ConnectionFactory connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost("localhost");
-
-
-        try(Connection connection=connectionFactory.newConnection();
-            Channel channel=connection.createChannel() ){
             //队列绑定关系
             channel.exchangeDeclare(
                     "exchange.order.restaurant",
@@ -40,12 +37,14 @@ public class OrderMessageService {
                     Boolean.FALSE,
                     null
             );
-            channel.queueDeclare(
+        HashMap<String, Object> hashMap = new HashMap<>();
+        hashMap.put("x-message-ttl",15000);
+        channel.queueDeclare(
                     "queue.restaurant",
                     Boolean.TRUE,
                     Boolean.FALSE,
                     Boolean.FALSE,
-                    null
+                hashMap
             );
             channel.queueBind(
                     "queue.restaurant",
@@ -53,38 +52,56 @@ public class OrderMessageService {
                     "key.restaurant"
             );
 
-
-            channel.basicConsume("queue.restaurant", Boolean.TRUE,deliverCallback,consumerTag->{});
+            //开启消费端限流
+            channel.basicQos(2);
+            channel.basicConsume("queue.restaurant", Boolean.FALSE,deliverCallback,consumerTag->{});
             while(true){
                 Thread.sleep(100000000);
             }
-        }
+
     }
     DeliverCallback deliverCallback=((consumerTag,message)->{
-        OrderMessageDTO messageDTO = JSON.parseObject(message.getBody(), OrderMessageDTO.class);
-        ConnectionFactory connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost("localhost");
-        ProductPo productPo = productDao.selectProduct(messageDTO.getProductId());
-        RestaurantPo restaurantPo = restaurantDao.selectRestaurant(productPo.getRestaurantId());
-        if(productPo.getStatus().equals(ProductStatus.AVALIABLE.name())&& restaurantPo.getStatus().equals(RantaurantStatus.OPEN.name())){
-            messageDTO.setConfirmed(Boolean.TRUE);
-            messageDTO.setPrice(productPo.getPrice());
-        }else{
-            messageDTO.setConfirmed(Boolean.FALSE);
-        }
-        try(Connection connection=connectionFactory.newConnection();
-            Channel channel=connection.createChannel() ){
+        try {
+            OrderMessageDTO messageDTO = JSON.parseObject(message.getBody(), OrderMessageDTO.class);
+            ProductPo productPo = productDao.selectProduct(messageDTO.getProductId());
+            RestaurantPo restaurantPo = restaurantDao.selectRestaurant(productPo.getRestaurantId());
+            if(productPo.getStatus().equals(ProductStatus.AVALIABLE.name())&& restaurantPo.getStatus().equals(RantaurantStatus.OPEN.name())){
+                messageDTO.setConfirmed(Boolean.TRUE);
+                messageDTO.setPrice(productPo.getPrice());
+            }else{
+                messageDTO.setConfirmed(Boolean.FALSE);
+            }
+            //当我们发送的消息无法路由的时候，handleReturn会被调用
+//            channel.addReturnListener(new ReturnListener() {
+//                @Override
+//                public void handleReturn(int replyCode, String replyText, String exchange, String routingKey, AMQP.BasicProperties properties, byte[] body) throws IOException {
+//                    log.info("Message Return: replyCode:{}, replyText: {}, exchange: {}, routingKey: {}, properties: {}, body: {}",replyCode, replyText, exchange, routingKey, properties, body);
+//                }
+//            });
+            channel.addReturnListener(new ReturnCallback() {
+                @Override
+                public void handle(Return aReturn) {
+                    log.info("Message Return:{}",aReturn.getReplyText());
+                }
+            });
+            Thread.sleep(3000);
+            //签收消息
+//            channel.basicAck(message.getEnvelope().getDeliveryTag(),Boolean.FALSE);
+            //拒收消息
+            //channel.basicNack(message.getEnvelope().getDeliveryTag(),Boolean.FALSE,Boolean.TRUE);
             String messageToSend = JSON.toJSONString(messageDTO);
             channel.basicPublish(
                     "exchange.order.restaurant",
                     "key.order",
+                    Boolean.TRUE,
                     null,
                     messageToSend.getBytes()
             );
-
-
-        } catch (Exception e) {
-            log.error(e.getMessage(),e);
+            log.info("消息开始发送"+messageToSend);
+            //避免跳出try代码块channel自动被关掉，导致无法调用ReturnListener,这种叫做autoClosable
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
 

@@ -74,16 +74,39 @@
 			<artifactId>mapstruct-processor</artifactId>
 			<version>1.5.3.Final</version>
 		</dependency>
-		<!---->
+		<!--knife4j 接口管理界面化工具类-->
 		<dependency>
 			<groupId>com.github.xiaoymin</groupId>
 			<artifactId>knife4j-openapi2-spring-boot-starter</artifactId>
 			<version>4.1.0</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>mapstruct</artifactId>
+					<groupId>org.mapstruct</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<!--rabbitmq客户端模式-->
-		<dependency>
+		<!--<dependency>
 			<groupId>com.rabbitmq</groupId>
 			<artifactId>amqp-client</artifactId>
+		</dependency>-->
+		<!--引入spring-rabbit-->
+		<dependency>
+			<groupId>org.springframework.amqp</groupId>
+			<artifactId>spring-rabbit</artifactId>
+			<version>3.0.4</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>spring-amqp</artifactId>
+					<groupId>org.springframework.amqp</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.amqp</groupId>
+			<artifactId>spring-amqp</artifactId>
+			<version>3.0.4</version>
 		</dependency>
 	</dependencies>
 
