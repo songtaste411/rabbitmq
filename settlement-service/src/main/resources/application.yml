@@ -6,4 +6,38 @@ spring:
     password: root
     username: root
     url: jdbc:mysql://127.0.0.1:3306/food?useUnicode=true&characterEncoding=utf-8&serverTimezone=GMT%2B8
+version: "2.0"
+services:
+  rabbit1:
+    image: rabbitmq:3-management
+    hostname: rabbit1
+    ports:
+      - 5672:5672 #集群内部访问的端口
+      - 15672:15672 #外部访问的端口
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest #用户名
+      - RABBITMQ_DEFAULT_PASS=guest #密码
+      - RABBITMQ_ERLANG_COOKIE='rabbitcookie'
+  rabbit2:
+    image: rabbitmq:3-management
+    hostname: rabbit2
+    ports:
+      - 5673:5672 #集群内部访问的端口
+      - 15673:15672 #外部访问的端口
+    environment:
+      - RABBITMQ_ERLANG_COOKIE='rabbitcookie'
+    links:
+      - rabbit1
+  rabbit3:
+    image: rabbitmq:3-management
+    hostname: rabbit3
+    ports:
+      - 5674:5672 #集群内部访问的端口
+      - 15674:15672 #外部访问的端口
+    environment:
+      - RABBITMQ_ERLANG_COOKIE='rabbitcookie'
+    links:
+      - rabbit1
+
+
 
